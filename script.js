@@ -85,7 +85,36 @@ const node = nodeGroup.selectAll(".node")
             hideTooltip();
         }
     })
-    .call(d3.drag()
+    javascript// Hover group functionality
+function highlightHoverGroup(highlight) {
+    const hoverGroup = ["photography", "Joan Didion", "Anne Carson", "aesthetics"];
+    
+    // Highlight/unhighlight nodes
+    node.classed("highlighted", function(d) {
+        return highlight && hoverGroup.includes(d.id);
+    });
+    
+    // Highlight/unhighlight links between hover group nodes
+    link.classed("highlighted", function(d) {
+        return highlight && 
+            hoverGroup.includes(d.source.id) && 
+            hoverGroup.includes(d.target.id);
+    });
+}
+
+function showTooltip(event) {
+    const tooltip = document.getElementById("hover-tooltip");
+    tooltip.style.display = "block";
+    tooltip.style.left = event.pageX + "px";
+    tooltip.style.top = event.pageY + "px";
+}
+
+function hideTooltip() {
+    const tooltip = document.getElementById("hover-tooltip");
+    tooltip.style.display = "none";
+}
+
+.call(d3.drag()
         .on("start", dragstarted)
         .on("drag", dragged)
         .on("end", dragended));
