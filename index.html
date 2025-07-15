@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Nodal Network</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #1a1a2e;
+            overflow: hidden;
+        }
+
+        #network {
+            width: 100vw;
+            height: 100vh;
+            background-color: #1a1a2e;
+            cursor: grab;
+        }
+
+        #network.panning {
+            cursor: grabbing;
+        }
+
+        .node {
+            fill: white;
+            stroke: white;
+            stroke-width: 2px;
+            cursor: move;
+        }
+
+        .node:hover {
+            fill: #cccccc;
+        }
+
+        .node.dragging {
+            fill: #888888;
+        }
+
+        .link {
+            stroke: white;
+            stroke-opacity: 0.6;
+            stroke-width: 1px;
+        }
+
+        .node-label {
+            font-size: 12px;
+            fill: white;
+            text-anchor: middle;
+            pointer-events: none;
+            font-weight: 500;
+        }
+
+        .zoom-controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+        }
+
+        .zoom-btn:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .zoom-info {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 12px;
+            font-family: monospace;
+            background-color: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <svg id="network"></svg>
+    <div class="hover-tooltip" id="hover-tooltip" style="display: none;">
+    Questions of Style
+</div>
+
+
+    <script>
+        // Your network data - you can easily modify this
+        const nodes = [
+            { id: "Samia Henni", x: 300, y: 100 },
+            { id: "Deleuze and Guattari", x: 650, y: 70 },
+            { id: "reformulations of language", x: 800, y: 180 },
+            { id: "Milan Kundera", x: 150, y: 250 },
+            { id: "land", x: 280, y: 280 },
+            { id: "Italo Calvino", x: 450, y: 260 },
+            { id: "systems of power", x: 580, y: 240 },
+            { id: "cartographies", x: 350, y: 340 },
+            { id: "Anne Carson", x: 650, y: 320 },
+            { id: "memory", x: 750, y: 340 },
+            { id: "palimpsest", x: 580, y: 400 },
+            { id: "Archives", x: 800, y: 400 },
+            { id: "terroir", x: 200, y: 430 },
+            { id: "exhibition", x: 300, y: 440 },
+            { id: "stories of place", x: 400, y: 500 },
+            { id: "Forensic Architecture", x: 500, y: 520 },
+            { id: "Walter Benjamin", x: 600, y: 480 },
+            { id: "history", x: 750, y: 570 },
+            { id: "Sally Rooney", x: 850, y: 520 },
+            { id: "contamination", x: 100, y: 620 },
+            { id: "ways of seeing", x: 350, y: 660 },
+            { id: "James Scott", x: 520, y: 650 },
+            { id: "testimony", x: 650, y: 630 },
+            { id: "Pom Press", x: 100, y: 700 },
+            { id: "aesthetics", x: 420, y: 760 },
+            { id: "Joan Didion", x: 520, y: 780 },
+            { id: "photography", x: 650, y: 750 },
+            { id: "Influence", x: 200, y: 800 },
+            { id: "Laura", x: 300, y: 880 },
+            { id: "Nicholas Mirzoeff", x: 420, y: 880 },
+            { id: "pixels", x: 800, y: 900 },
+            { id: "grain", x: 900, y: 800 },
+            { id: "questions of style", x: 600, y: 600 },
+            { id: "Adriana Gallo", x: 700, y: 680 },
+          
+        ];
+
+        const links = [
+            { source: "Deleuze and Guattari", target: "reformulations of language" },
+            { source: "Deleuze and Guattari", target: "systems of power" },
+            { source: "systems of power", target: "reformulations of language" },
+            { source: "systems of power", target: "cartographies" },
+            { source: "systems of power", target: "Archives" },
+            { source: "Anne Carson", target: "history" },
+            { source: "memory", target: "Archives" },
+            { source: "palimpsest", target: "Archives" },
+            { source: "palimpsest", target: "stories of place" },
+            { source: "palimpsest", target: "history" },
+            { source: "Archives", target: "Sally Rooney" },
+            { source: "Archives", target: "history" },
+            { source: "land", target: "cartographies" },
+            { source: "cartographies", target: "stories of place" },
+            { source: "terroir", target: "stories of place" },
+            { source: "stories of place", target: "Forensic Architecture" },
+            { source: "Forensic Architecture", target: "cartographies" },
+            { source: "stories of place", target: "Italo Calvino" },
+            { source: "stories of place", target: "land" },
+            { source: "stories of place", target: "Joan Didion" },
+            { source: "Walter Benjamin", target: "history"},
+            { source: "Walter Benjamin", target: "Archives"},
+            { source: "Walter Benjamin", target: "photography"},
+            { source: "testimony", target: "Forensic Architecture" },
+            { source: "photography", target: "ways of seeing" },
+            { source: "ways of seeing", target: "cartographies" },
+            { source: "ways of seeing", target: "Laura" },
+            { source: "ways of seeing", target: "James Scott" },
+            { source: "aesthetics", target: "photography" },
+            { source: "photography", target: "questions of style" },
+            { source: "Nicholas Mirzoeff", target: "ways of seeing" },
+            { source: "history", target: "Forensic Architecture" },
+            { source: "history", target: "memory" },
+            { source: "Joan Didion", target: "questions of style" },
+            { source: "Forensic Architecture", target: "exhibition" },
+            { source: "grain", target: "Archives" },
+            { source: "grain", target: "pixels" },
+            { source: "pixels", target: "photography" },
+            { source: "pixels", target: "Laura" },
+            { source: "pixels", target: "ways of seeing" },
+            { source: "grain", target: "Adriana Gallo" },
+            { source: "grain", target: "Adriana Gallo" },
+            { source: "Adriana Gallo", target: "terroir" },
+            { source: "grain", target: "James Scott" },
+        ];
+
+        // Set up SVG with zoom capabilities
+        const svg = d3.select("#network");
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+
+        svg.attr("width", width).attr("height", height);
+
+        // Create zoom behavior
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 10])
+            .on("zoom", handleZoom);
+
+        // Apply zoom to SVG
+        svg.call(zoom);
+
+        // Create main group for all elements (this will be transformed)
+        const mainGroup = svg.append("g").attr("class", "main-group");
+
+        // Create groups for links and nodes within the main group
+        const linkGroup = mainGroup.append("g").attr("class", "links");
+        const nodeGroup = mainGroup.append("g").attr("class", "nodes");
+
+        // Zoom handler
+        function handleZoom(event) {
+            const { transform } = event;
+            mainGroup.attr("transform", transform);
+            
+            // Update zoom info display
+            const zoomInfo = document.getElementById("zoom-info");
+            if (zoomInfo) {
+                zoomInfo.textContent = `Zoom: ${transform.k.toFixed(2)}x | Pan: (${Math.round(transform.x)}, ${Math.round(transform.y)})`;
+            }
+        }
+
+        // Zoom functions
+        function zoomIn() {
+            svg.transition().duration(300).call(zoom.scaleBy, 1.5);
+        }
+
+        function zoomOut() {
+            svg.transition().duration(300).call(zoom.scaleBy, 1 / 1.5);
+        }
+
+        function resetZoom() {
+            svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+        }
+
+        // Set up force simulation
+        let simulation = d3.forceSimulation(nodes)
+            .force("link", d3.forceLink(links).id(d => d.id).distance(100))
+            .force("charge", d3.forceManyBody().strength(-500))
+            .force("center", d3.forceCenter(width / 2, height / 2));
+
+        // Create links
+        const link = linkGroup.selectAll(".link")
+            .data(links)
+            .enter().append("line")
+            .attr("class", "link");
+
+        // Create nodes
+        const node = nodeGroup.selectAll(".node")
+            .data(nodes)
+            .enter().append("circle")
+            .attr("class", "node")
+            .attr("r", 8)
+            .call(d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended));
+
+
+
+        // Update positions on simulation tick
+        simulation.on("tick", () => {
+            link
+                .attr("x1", d => d.source.x)
+                .attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x)
+                .attr("y2", d => d.target.y);
+
+            node
+                .attr("cx", d => d.x)
+                .attr("cy", d => d.y);
+
+            label
+                .attr("x", d => d.x)
+                .attr("y", d => d.y + 25); // Position label below node
+        });
+ // Special hover group nodes
+        const hoverGroup = ["photography", "Joan Didion", "Anne Carson", "aesthetics"];
+        
+
+        // Create labels
+        const label = nodeGroup.selectAll(".node-label")
+            .data(nodes)
+            .enter().append("text")
+            .attr("class", "node-label")
+            .text(d => d.id);
+
+        // Update positions on simulation tick
+        simulation.on("tick", () => {
+            link
+                .attr("x1", d => d.source.x)
+                .attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x)
+                .attr("y2", d => d.target.y);
+
+            node
+                .attr("cx", d => d.x)
+                .attr("cy", d => d.y);
+
+            label
+                .attr("x", d => d.x)
+                .attr("y", d => d.y + 25); // Position label below node
+        });
+
+        // Hover group functionality
+        function highlightHoverGroup(highlight) {
+            const hoverGroup = ["photography", "Joan Didion", "Anne Carson", "aesthetics"];
+            
+            // Highlight/unhighlight nodes
+            node.classed("highlighted", function(d) {
+                return highlight && hoverGroup.includes(d.id);
+            });
+            
+            // Highlight/unhighlight links between hover group nodes
+            link.classed("highlighted", function(d) {
+                return highlight && 
+                    hoverGroup.includes(d.source.id) && 
+                    hoverGroup.includes(d.target.id);
+            });
+        }
+        
+        function showTooltip(event) {
+            const tooltip = document.getElementById("hover-tooltip");
+            tooltip.style.display = "block";
+            tooltip.style.left = event.pageX + "px";
+            tooltip.style.top = event.pageY + "px";
+        }
+        
+        function hideTooltip() {
+            const tooltip = document.getElementById("hover-tooltip");
+            tooltip.style.display = "none";
+        }
+
+        // Drag functions
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+            d3.select(this).classed("dragging", true);
+        }
+
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+            d3.select(this).classed("dragging", false);
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(event) {
+            if (event.ctrlKey || event.metaKey) {
+                switch(event.key) {
+                    case '=':
+                    case '+':
+                        event.preventDefault();
+                        zoomIn();
+                        break;
+                    case '-':
+                        event.preventDefault();
+                        zoomOut();
+                        break;
+                    case '0':
+                        event.preventDefault();
+                        resetZoom();
+                        break;
+                }
+            }
+        });
+
+        // Add some nice easing to the simulation
+        simulation.alpha(1).restart();
+    </script>
+
+</body>
+</html>
